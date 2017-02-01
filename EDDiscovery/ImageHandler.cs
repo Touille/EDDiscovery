@@ -29,6 +29,7 @@ using EDDiscovery2.DB;
 using EDDiscovery.EliteDangerous;
 using EDDiscovery.EliteDangerous.JournalEvents;
 using Newtonsoft.Json.Linq;
+using System.Diagnostics;
 
 namespace EDDiscovery2.ImageHandler
 {
@@ -190,7 +191,12 @@ namespace EDDiscovery2.ImageHandler
 
                 if (File.Exists(filename))
                 {
+                    Trace.WriteLine($"Processing journal screenshot {filename}");
                     ProcessScreenshot(filename, ss.System, ss, ss.CommanderId);
+                }
+                else
+                {
+                    Trace.WriteLine($"Screenshot file {filename} doesn't actually exist");
                 }
             }
         }
@@ -229,6 +235,8 @@ namespace EDDiscovery2.ImageHandler
 
             if (e.FullPath.ToLowerInvariant().EndsWith(".bmp"))
             {
+                bool wait = false;
+
                 if (!ScreenshotTimers.ContainsKey(e.FullPath))
                 {
                     System.Threading.Timer timer = new System.Threading.Timer(s => ProcessScreenshot(e.FullPath, null, null, cmdrid), null, 5000, System.Threading.Timeout.Infinite);
@@ -238,6 +246,19 @@ namespace EDDiscovery2.ImageHandler
                     {
                         timer.Dispose();
                     }
+                    else
+                    {
+                        wait = true;
+                    }
+                }
+
+                if (wait)
+                {
+                    Trace.WriteLine($"Screenshot watcher: waiting for journal event for {e.FullPath} to materialize");
+                }
+                else
+                {
+                    Trace.WriteLine($"Screenshot watcher: Screenshot {e.FullPath} was already processed");
                 }
             }
             else
@@ -252,10 +273,20 @@ namespace EDDiscovery2.ImageHandler
 
             // Don't run if OnScreenshot has already run for this image
             if ((ScreenshotTimers.TryGetValue(filename, out timer) && timer == null) || (!ScreenshotTimers.TryAdd(filename, null) && !ScreenshotTimers.TryUpdate(filename, null, timer)))
+            {
+                Trace.WriteLine($"Screenshot processor: screenshot {filename} has already been processed");
                 return;
+            }
+            else
+            {
+                Trace.WriteLine($"Processing screenshot {filename}");
+            }
 
             if (timer != null)
+            {
+                Trace.WriteLine($"Cancelling timer for {filename}");
                 timer.Dispose();
+            }
 
             bool checkboxremove = false;
             bool checkboxpreview = false;
@@ -297,6 +328,7 @@ namespace EDDiscovery2.ImageHandler
         {                                                                             
             try
             {
+                Trace.WriteLine($"Converting screenshot {inputfile}");
                 string store_name = null;
                 FileInfo fi = null;
                 Point finalsize = Point.Empty;
@@ -320,6 +352,7 @@ namespace EDDiscovery2.ImageHandler
                         return;
                     }
 
+
                     cmdrid = ss.CommanderId;
 
                     if (store_name == null || cp.reconvert)
@@ -341,6 +374,8 @@ namespace EDDiscovery2.ImageHandler
                                 });
                             }
 
+                            Trace.WriteLine($"Converting screenshot {inputfile} to {store_name}");
+
                             if (cp.extension.Equals(".jpg"))
                             {
                                 croppedbmp.Save(store_name, System.Drawing.Imaging.ImageFormat.Jpeg);
@@ -361,6 +396,10 @@ namespace EDDiscovery2.ImageHandler
                             finalsize = new Point(croppedbmp.Size);
                             converted = true;
                         }
+                    }
+                    else
+                    {
+                        Trace.WriteLine($"Output file {store_name} already exists for screenshot {inputfile}");
                     }
                 }
 
